@@ -1,0 +1,323 @@
+#import your libraries
+import pandas as pd
+import sklearn as sk
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+#from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LinearRegression 
+from sklearn.pipeline import make_pipeline
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor 
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+import pickle
+#etc
+
+
+### ---- 2 Load the data ----
+
+#load the data into a Pandas dataframe
+path = r'C:\Users\ApoorvaS\Desktop\salaryPrediction\data'
+train_f_filename = 'train_features'
+train_s_filename = 'train_salaries'
+test_f_filename = 'test_features'
+
+
+def loadData(path, filename, filetype):
+    file = path + "\\" + filename + "." + filetype
+    if filetype is 'csv':
+        filename = pd.read_csv(file)
+    elif filetype is 'xlsx':
+        filename = pd.read_xlsx(file)
+    return filename
+    
+    
+train_feature = loadData(path, train_f_filename, 'csv')
+train_salary = loadData(path, train_s_filename, 'csv')
+test_feature = loadData(path, test_f_filename, 'csv')
+
+[train_feature[x].unique() for x in train_feature.columns]
+train_feature['degree'].value_counts()
+
+
+### ---- 3 Clean the data ----
+#look for duplicate data, invalid data (e.g. salaries <=0), or corrupt data and remove it
+class cleanData():
+    def _init_(self, train_feature, train_salary, left_on = 'jobId', right_on = 'jobId'):
+        self.df = pd.merge(train_feature, train_salary, left_on = left_on, right_on = right_on, how = 'inner')
+    
+    def duplicateRows(self):
+        df = df[~df.duplicated()]
+        return df, len(df)
+        
+    def dataQualityCheck(self):
+        nullCounts = {}
+        for x in df.columns:
+            if (df[x].dtype) == 'object':
+                print(str(x) + " is a categorical variable")
+                if np.max(df[x].value_counts()) == 1:
+                    
+                    print(str(x) + " is an Id type column")
+                    continue
+                else:
+                    print(df[x].value_counts())
+            elif (df[x].dtype) == 'int64' or 'float64':
+                print ("\n")
+                print(str(x) + " is a numerical variable")
+                print("Check minimum and maximum values of interger datatypes, like salary <0 etc.")
+                print("Check salary against all other variables")
+                print ("\n")
+            nullCounts[x] = np.sum(df[x].isnull())
+        
+        print("Describe below Columns: ")
+        print (df.describe())
+        print ("\n")
+        print ("Now printing count of missing values: " )
+        print (nullCounts)
+    
+    def dropCorruptData(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
+        df.drop(labels, axis, index, columns, level, inplace, errors)
+        print(str(labels) + " is now dropped from input df, now returning clean df") 
+        return df
+    
+    def dropMissingData(self, axis=0, how='any', thresh=None, subset=None, inplace=False):
+        print("Thoroughly check if the missing data point is genuine or not before dropping it")        
+        print("Define missing data")        
+        missing = input("Input list to recognize missing data points: ", recogMisData)        
+        acknowledgeDrop = input("Would you like to proceed? y/n: ")
+        if acknowledgeDrop.lower() == 'y' or 'yes':
+            df.dropna(axis, how, thresh, subset, inplace)
+            return df
+        else:
+            print("break out")        
+            
+    def imputeMissing(self, col, method=None, axis=None, inplace=True,impute = 'mean'):
+        if impute == 'mean':
+            df[col] = df[col].fillna(df[col].mean(), method=method, axis=axis, inplace=inplace,)
+        elif impute == 'median':
+            df[col] = df[col].fillna(df[col].median(), method=method, axis=axis, inplace=inplace,)
+        return df[col]
+        
+   
+   ### ---- 4 Explore the data (EDA) ----
+   
+   #summarize each feature variable
+#summarize the target variable
+#look for correlation between each feature and the target
+def correlation(features, target, mergeOn, method = 'pearson'):
+    ftTarget = pd.merge(features, target, on = mergeOn)
+    print ("Studying feature correlation \n")
+    print ("feature corr ", features.corr(method))
+    print ("\n")
+    print ("Studying feature-target correlation \n")
+    print ("feature-target corr ", ftTarget.corr(method))
+    return ftTarget.corr(method)
+#look for correlation between features
+
+corr = correlation(train_feature, train_salary, mergeOn = 'jobId', method = 'pearson')
+
+### Represent correlation visually
+
+def corrPlot(corrFunct, square = True, vmin = -1, vmax = 1):
+    ax = sns.heatmap(
+    corr, 
+    vmin=vmin, vmax=vmax, center=0,
+    cmap=sns.diverging_palette(20, 220, n=200),
+    square=True
+    )
+    ax.set_xticklabels(
+        ax.get_xticklabels(),
+        rotation=10,
+        horizontalalignment='right'
+    )
+
+    plt.show()
+    
+    
+corrPlot(corr)
+
+
+#### Outlier detection
+#Find outliers after 3 SDs, inspect them for their genuiness
+
+outliers=[]
+def detect_outlier(col):
+    if col.dtype == 'int64' or col.dtype == 'float64':   
+        threshold=3
+        mu = np.mean(col)
+        sigma =np.std(col)
+        
+        for i in col:
+            z_score= (i - mu)/sigma 
+            if np.abs(z_score) > threshold:
+                outliers.append(i)
+        return outliers
+    elif col.dtype == 'O':
+        return col.value_counts()
+        
+        
+ ## Plot all variable distribution
+ 
+ df = pd.merge(train_feature, train_salary, left_on = 'jobId', right_on = 'jobId', how = 'inner')
+        
+def plotKinds():
+    print("swarm\n")
+    print("box\n")
+    print("violin\n")
+    print("boxen\n")
+    print("count\n")
+    print("point\n")
+
+    #cartesian product for variable combination that makes sense
+catNum = [['degree', 'major', 'industry'], ['yearsExperience', 'milesFromMetropolis', 'salary']]
+def CartProd():
+    return np.transpose([np.tile(catNum[0], len(catNum[1])), np.tile(catNum[1], len(catNum[0]))])
+
+
+def singleVarPlot(df, kind, hue = None):
+    for i in df.columns:
+        if (df[i].dtype) == 'object':
+            sns.catplot(col = i, kind = kind, hue = hue, data = df)
+        elif ((df[i].dtype) == 'int64' or 'float64'):
+            print("\n Density plot")
+            sns.distplot(df[col])
+        else:
+            print("\n datatype not supported, expand function def")
+        sns.set(style="ticks", color_codes=True)
+        plt.show()
+    
+ #style : name of variables in data or vector data, optional
+# Grouping variable that will produce points with different markers. Can have a numeric dtype but will always be treated as categorical.   
+def multiVarPlot(x, y, kind, data, hue=None, style =None):
+    if kind == 'scatterPlot':
+        if data[x].dtype == 'O' or data[y].dtype == 'O':
+            print("\n Object data types NA for scatterplots, you fool!")  
+        else:
+            sns.scatterplot(x = x, y = y, hue = hue, style = style, data = data)  
+    else:
+        if kind == 'box':
+            sns.boxplot(x, y, data = df)
+    sns.set(style="ticks")
+    plt.show()
+    
+
+#https://towardsdatascience.com/visualizing-data-with-pair-plots-in-python-f228cf529166
+def pairPlot(hue=None):
+    print("Only applicable for integer data .If you encounter skewed variables, convert to log10 and the run again")
+    sns.pairplot(df, hue=hue)
+    plt.show()
+    
+def shuffle(df):
+    return df.sample(frac=1).reset_index(drop=True)
+    
+    
+ singleVarPlot(df, kind='violin')
+
+cp = CartProd()
+for j in range(len(cp)):
+    x,y = [i for i in cp[j]]
+    multiVarPlot(x, y, data = train_feature,kind='box', hue=None, style = None)
+
+pairPlot()
+
+
+df[df['salary']==0]
+df = df.drop('jobId' == ['JOB1362684438246','JOB1362685059763','JOB1362685223816','JOB1362685235843'])
+
+df = shuffle(df)
+
+### ---- 5 Establish a baseline ----
+
+def baseModel(df,col,target_var):
+    return np.mean(df[target_var]), df.groupby(col)[target_var].mean()
+
+def train_cv(model, X, y, cv, scoring = 'mean_squared_error', n_jobs=None):
+    score = cross_val_score(model, X, y, cv, scoring, n_jobs)
+    meanScore[model] = np.mean(-1*score)
+    std_model[model] = np.std(score) 
+    
+def one_hot_encode(df):
+    df = df.drop(['jobId', 'companyId'],axis=1)
+    cat = pd.get_dummies(df.select_dtypes(include=['O']))
+    num = df.select_dtypes(exclude=['O','bool']).apply(pd.to_numeric)
+    dfU = pd.concat([cat,num], axis=1)
+    return dfU.drop('salary',axis=1) 
+    
+X_train = one_hot_encode(df)
+
+### ---- 6 Hypothesize solution ----
+
+#MSE of the baseline model
+
+x=train_salary['salary']
+
+baeLineMSE = np.square(np.subtract(x,np.mean(x))).mean() 
+baeLineMSE
+
+
+### ---- 7 Create models ----
+
+def grid_search(X_train, y_train):
+    
+    pipeline1 = make_pipeline(
+    RandomForestRegressor()
+    )
+
+    pipeline2 = make_pipeline(
+        StandardScaler(),
+        PCA(), 
+        LinearRegression())
+
+    pipeline3 = make_pipeline(
+    xgb.XGBRegressor()
+    )
+
+
+    parameters1 = {
+    'max_features' : ['auto', 'sqrt', 'log2'],
+    'n_estimators' : [50, 100, 200, 500],
+    'min_sample_leaf' : [rc*0.002, rc*0.005, 100, 50],
+    'random_state' : [1]
+    }
+
+    parameters2 = {
+
+    }
+
+    parameters3 = {
+    'learning_rate':[0.1, 0.05, 0.5],
+    'n_estimators':[75,120],
+    'max_depth':[5, 10],
+    'random_state':[1]
+    }
+
+
+    pars = [parameters1, parameters2, parameters3]
+    pips = [pipeline1, pipeline2, pipeline3]
+
+    print ("starting Gridsearch")
+    f=[]
+    for i in range(len(pars)):
+        gs = GridSearchCV(pips[i], pars[i], verbose=2, refit=False, n_jobs=1, cv=5, scoring='neg_mean_squared_error')
+        gs = gs.fit(X_train, y_train['salary'])
+        print ("Gridsearch Complete")
+        a = gs.best_score_
+        f.append(a)
+        print(f) 
+        
+        
+   grid_search(train_feature, train_salary)
+   
+   ##----save results----
+   
+   for model, param_grid in rf, rf_param_grid:
+    cv = GridSearchCV(estimator = model, param_grid = param_grid, cv=10, scoring='accuracy')
+    cv.fit(X_train, Y_train)
+    sorted(str(model)+'_'+cv.cv_results_.keys())
+    pkl_filename = "pickle_model.pkl"
+    with open(pkl_filename, 'wb') as file:
+        pickle.dump(str(model)+'_'+cv, file)
